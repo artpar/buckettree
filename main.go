@@ -66,7 +66,7 @@ func main() {
 
 	for _, oldRow := range rows {
 		myBucket.AddRow(ToInterface(oldRow))
-		fmt.Printf("%v", myBucket.PrintBuckets(""))
+		//fmt.Printf("%v", myBucket.PrintBuckets(""))
 	}
 	fmt.Printf("Completed old\n")
 	c = 0
@@ -75,7 +75,7 @@ func main() {
 		c = c + 1
 		if c > 5 {
 			c = 0
-			fmt.Printf("%v", myBucket.PrintBuckets(""))
+			//fmt.Printf("%v", myBucket.PrintBuckets(""))
 		}
 	}
 
