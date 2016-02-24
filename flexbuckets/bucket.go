@@ -1,4 +1,4 @@
-package numberbuckets
+package flexbuckets
 
 import (
 	"math"
@@ -7,19 +7,22 @@ import (
 //"reflect"
 	"reflect"
 	"bytes"
+	"strconv"
 )
 
 type BucketImpl struct {
-	min               float64
-	max               float64
-	total             int64
-	numberOfBuckets   int
-	lengthOfBucket    float64
-	bucketHigh        []float64
-	bucketLow         []float64
-	bucketCount       []int
-	objects           []FlexBucket
-	newBucketFunction func() FlexBucket
+	min                float64
+	max                float64
+	total              int64
+	numberOfBuckets    int
+	lengthOfBucket     float64
+	bucketHigh         []float64
+	bucketLow          []float64
+	bucketCount        []int
+	objects            []FlexBucket
+	builderMap         []func(i int, m []interface{}) FlexBucket
+	originalBuilderMap []interface{}
+	columnIndex        int
 }
 
 func (b *BucketImpl) Buckets() map[string]int {
@@ -46,6 +49,9 @@ func (b *BucketImpl) PrintBuckets(tab string) string {
 	var bi bytes.Buffer
 	keys := make([]string, b.numberOfBuckets)
 	for i := 0; i < b.numberOfBuckets; i++ {
+		if b.bucketCount[i] < 1 {
+			continue
+		}
 		key := fmt.Sprintf("%v - %v", b.bucketLow[i], b.bucketHigh[i])
 		keys[i] = key
 		bi.WriteString(fmt.Sprintf("%s|-%s: %d\n", tab, key, b.bucketCount[i]))
@@ -54,7 +60,13 @@ func (b *BucketImpl) PrintBuckets(tab string) string {
 	return bi.String()
 }
 
-func NewNumberRangeBucket(l int, newBucketFunction func() FlexBucket) FlexBucket {
+func NewNumberRangeBucket(index int, m []interface{}) FlexBucket {
+	//fmt.Printf("New Number bucket with index: %d\n", index)
+	flist := make([]func(index int, m []interface{}) FlexBucket, len(m))
+	for i, w := range m {
+		flist[i] = w.(func(in int, m []interface{}) FlexBucket)
+	}
+	l := 4
 	b := &BucketImpl{
 		min : math.MaxInt64,
 		max : math.MinInt64,
@@ -64,10 +76,13 @@ func NewNumberRangeBucket(l int, newBucketFunction func() FlexBucket) FlexBucket
 		numberOfBuckets : l,
 		total : 0,
 		objects: make([]FlexBucket, l),
-		newBucketFunction: newBucketFunction,
+		columnIndex:index,
+		builderMap: flist,
+		originalBuilderMap: m,
 	}
 	for i, _ := range b.objects {
-		b.objects[i] = newBucketFunction()
+		//fmt.Printf("New bucket for: %d\n", i)
+		b.objects[i] = flist[index](index + 1, b.originalBuilderMap)
 	}
 	return b
 }
@@ -117,7 +132,9 @@ func (b *BucketImpl) AddBuckets(x FlexBucket) {
 	if !ok {
 		panic("Cannot add bucket of this type: " + reflect.TypeOf(x).String())
 	}
-	c, l, h, o := mergeBuckets(b.bucketCount, b.bucketLow, b.bucketHigh, b.objects, newB.bucketCount, newB.bucketLow, newB.bucketHigh, newB.objects, b.newBucketFunction)
+	c, l, h, o := mergeBuckets(b.bucketCount, b.bucketLow, b.bucketHigh, b.objects, newB.bucketCount, newB.bucketLow, newB.bucketHigh, newB.objects, func() FlexBucket {
+		return b.builderMap[b.columnIndex](b.columnIndex + 1, b.originalBuilderMap)
+	})
 	b.bucketCount = c
 	b.bucketLow = l
 	b.bucketHigh = h
@@ -132,7 +149,9 @@ func mergeOldToNew(oCounts []int, oLows, oHighs []float64, oObjects []FlexBucket
 	j := 0
 	for i := 0; i < totalRecs; i++ {
 		if j == count {
-			if i != totalRecs - 1 || oCounts[i] != 0 {
+			if oCounts[i] != 0 {
+				fmt.Printf("The Highest new Bucket is: %v => %v\n", nLows[count - 1], nHighs[count - 1])
+				fmt.Printf("We wanted to merge %d counts from old %v => %v\n", oCounts[i], oLows[i], oHighs[i])
 				panic("What has happened")
 			}
 			break;
@@ -238,18 +257,26 @@ func (b *BucketImpl) AddAllValues(vals ...interface{}) {
 }
 
 func (b *BucketImpl) AddRow(row []interface{}) {
+	//fmt.Printf("Add %v to a NumberRange\n", row)
 	if len(row) < 1 {
 		return
 	}
-	val := row[0].(int)
+	val, ok := row[0].(float64)
+	var err error
+	if !ok {
+		val, err = strconv.ParseFloat(row[0].(string), 64)
+		if err != nil {
+			panic(fmt.Sprintf("This is not a number: %v", row[0]))
+		}
+	}
 	bucketNumber := b.AddValue(val)
-	//fmt.Printf("Objects: %v\n", b.objects)
+	//fmt.Printf("Objects: %v\n", bucketNumber)
 	b.objects[bucketNumber.(int)].AddRow(row[1:])
 }
 
 func (b *BucketImpl) AddValue(vali interface{}) interface{} {
 	////fmt.Printf("Add value: %d\n", vali)
-	val := float64(vali.(int))
+	val := vali.(float64)
 	//fmt.Printf("Add: [%d] Number of buckets: %d\n", vali, b.numberOfBuckets)
 	b.total = b.total + 1
 	//fmt.Printf("Final total: %v\n", b.total)
@@ -262,6 +289,10 @@ func (b *BucketImpl) AddValue(vali interface{}) interface{} {
 		l, h := makeBuckets(b.min, b.lengthOfBucket, b.numberOfBuckets)
 		b.bucketLow = l
 		b.bucketHigh = h
+		for c := 0; c < b.numberOfBuckets; c++ {
+			//fmt.Printf("New function: %v\n", b.builderMap[b.columnIndex])
+			b.objects[c] = b.builderMap[b.columnIndex](b.columnIndex + 1, b.originalBuilderMap)
+		}
 	} else {
 		if val < b.min || val > b.max {
 			if val < b.min {
@@ -269,7 +300,9 @@ func (b *BucketImpl) AddValue(vali interface{}) interface{} {
 			}else if val > b.max {
 				b.max = val
 			}
-			c, l, h, o := resetBuckets(b.bucketCount, b.bucketLow, b.bucketHigh, b.objects, b.numberOfBuckets, b.min, b.max, b.newBucketFunction)
+			c, l, h, o := resetBuckets(b.bucketCount, b.bucketLow, b.bucketHigh, b.objects, b.numberOfBuckets, b.min, b.max, func() FlexBucket {
+				return b.builderMap[b.columnIndex](b.columnIndex + 1, b.originalBuilderMap)
+			})
 			if h[len(h) - 1] > b.max {
 				b.max = h[len(h) - 1]
 			}
