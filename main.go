@@ -1,10 +1,10 @@
 package main
 
 import (
-	//"fmt"
+//"fmt"
 	"os"
 	"encoding/csv"
-	//"encoding/json"
+//"encoding/json"
 	"sort"
 	"github.com/artpar/gisio/types"
 	"github.com/artpar/difference/numberbuckets"
@@ -136,5 +136,5 @@ func main() {
 		panic(err)
 	}
 
-	 fmt.Printf("%v", string(js))
+	fmt.Printf("%v", string(js))
 }
