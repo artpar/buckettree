@@ -6,7 +6,7 @@ import (
 	"encoding/csv"
 //"encoding/json"
 	"github.com/artpar/gisio/types"
-	"github.com/artpar/difference/flexbuckets"
+	"github.com/artpar/buckettree/flexbuckets"
 	"fmt"
 	_ "net/http/pprof"
 	"log"
