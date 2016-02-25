@@ -22,10 +22,10 @@ func BuildTree(t []types.EntityType) FlexBucket {
 	for i := 1; i < len(t); i++ {
 		typ := t[i]
 		if typ == types.Number {
-			fmt.Printf("%d children is a number range\n", i - 1)
+			//fmt.Printf("%d children is a number range\n", i - 1)
 			builders[i - 1] = NewNumberRangeBucket
 		}else {
-			fmt.Printf("%d children is a identity range\n", i - 1)
+			//fmt.Printf("%d children is a identity range\n", i - 1)
 			builders[i - 1] = NewIdentityBucket
 		}
 	}
@@ -147,7 +147,7 @@ func (i *IdentityBucket) AddRow(row []interface{}) {
 		return
 	}
 	b := i.AddValue(row[0])
-	fmt.Printf("Add %v to IdentityBucket[%d] => Added to %v\n", row, i.index, b)
+	//fmt.Printf("Add %v to IdentityBucket[%d] => Added to %v\n", row, i.index, b)
 	i.objects[b.(string)].AddRow(row[1:])
 }
 
@@ -159,10 +159,13 @@ func (i *IdentityBucket) AddBuckets(b FlexBucket) {
 	for name, count := range strBucket.buckets {
 		v, ok := i.buckets[name]
 		if ok {
-			//fmt.Printf("%s is already contained, increasing count by %d", name, count)
+			//fmt.Printf("%s is already contained, increasing count by %d\n", name, count)
 			i.buckets[name] = v + count
+			i.objects[name].AddBuckets(strBucket.objects[name])
 		} else {
+			//fmt.Printf("%s is new, adding it with count: %d\n", name, count)
 			i.objects[name] = i.builderMap[i.index](i.index + 1, i.originalBuilderMap)
+			i.objects[name].AddBuckets(strBucket.objects[name])
 			i.buckets[name] = count
 		}
 	}

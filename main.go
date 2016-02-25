@@ -8,6 +8,9 @@ import (
 	"github.com/artpar/gisio/types"
 	"github.com/artpar/difference/flexbuckets"
 	"fmt"
+	_ "net/http/pprof"
+	"log"
+	"net/http"
 )
 
 type ColumnInfo struct {
@@ -33,6 +36,9 @@ func (a ColumnInfoS) Less(i, j int) bool {
 }
 
 func main() {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 	file, err := os.Open("data.csv")
 	if err != nil {
 		panic(err)
@@ -61,14 +67,14 @@ func main() {
 		typesList[i] = typ
 	}
 
-	fmt.Printf("Types are: %v\n", typesList)
+	//fmt.Printf("Types are: %v\n", typesList)
 	myBucket := flexbuckets.BuildTree(typesList)
 
 	for _, oldRow := range rows {
 		myBucket.AddRow(ToInterface(oldRow))
 		//fmt.Printf("%v", myBucket.PrintBuckets(""))
 	}
-	fmt.Printf("Completed old\n")
+	//fmt.Printf("Completed old\n")
 	c = 0
 	for row, err = reader.Read(); err == nil; row, err = reader.Read() {
 		myBucket.AddRow(ToInterface(row))
