@@ -331,7 +331,8 @@ func (b *BucketImpl) AddAllValues(vals ...interface{}) {
 
 func (b *BucketImpl) AddRow(row []interface{}) {
 	// fmt.Printf(cur() + ": Add %v to a NumberRange\n", row)
-	if len(row) < 1 {
+	l := len(row)
+	if l < 1 {
 		return
 	}
 	val, ok := row[0].(float64)
@@ -349,6 +350,9 @@ func (b *BucketImpl) AddRow(row []interface{}) {
 	}
 	bucketNumber := b.AddValue(val)
 	// fmt.Printf(cur() + ": Objects: %v\n", bucketNumber)
+	if l < 2 {
+		return
+	}
 	b.objects[bucketNumber.(int)].AddRow(row[1:])
 }
 

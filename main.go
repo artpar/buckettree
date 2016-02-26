@@ -86,12 +86,21 @@ func main() {
 	j, _ := json.MarshalIndent(colValues, "", "    ")
 	fmt.Printf("Column Counts: %v\n", string(j))
 
-	typesList := make([]types.EntityType, len(row))
+	typesList := make([]flexbuckets.BucketType, len(row))
 	for i, c := range colValues {
-		typesList[i] = c.Type
+		typ := c.Type
+		if typ == types.Number && !c.IsEnum {
+			typesList[i] = flexbuckets.NumberBucketType
+		} else {
+			if c.IsEnum {
+				typesList[i] = flexbuckets.IdentityBucketType
+			} else {
+				typesList[i] = flexbuckets.SingleBucketType
+			}
+		}
 	}
 
-	//fmt.Printf("Types are: %v\n", typesList)
+	fmt.Printf("Types are: %v\n", typesList)
 	myBucket := flexbuckets.BuildTree(typesList)
 
 	convertedRow := make([]string, len(colValues))
@@ -117,7 +126,7 @@ func main() {
 		}
 	}
 
-	//fmt.Printf("%v", myBucket.PrintBuckets(""))
+	fmt.Printf("%v", myBucket.PrintBuckets(""))
 }
 
 func MapKeys(m map[string]int) []string {

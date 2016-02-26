@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"fmt"
 	"bytes"
-	"github.com/artpar/gisio/types"
 )
 
 type FlexBucket interface {
@@ -16,36 +15,119 @@ type FlexBucket interface {
 	PrintBuckets(tab string) string
 }
 
-func BuildTree(t []types.EntityType) FlexBucket {
+func (s *SingleBucket) AddRow(row []interface{}) {
+	s.AddValue(row[0])
+	s.object.AddRow(row[1:])
+}
+
+func (s *SingleBucket) PrintBuckets(tab string) string {
+	var bi bytes.Buffer
+	bi.WriteString(fmt.Sprintf("%s|-%s: %d\n", tab, "SingleBucket", s.count))
+	bi.WriteString(s.object.PrintBuckets(tab + "|   "))
+	return bi.String()
+}
+
+func (s *SingleBucket) AddBuckets(b FlexBucket) {
+	si, ok := b.(*SingleBucket)
+	if !ok {
+		panic("Cannot add this type of bucket: " + reflect.TypeOf(b).String())
+	}
+	if si.count < 1 {
+		return
+	}
+	if s.count == 0 {
+		s.object = s.builderMap[s.index](s.index + 1, s.originalBuilderMap)
+	}
+	s.count = s.count + si.count
+	s.object.AddBuckets(si.object)
+}
+
+type SingleBucket struct {
+	count              int
+	object             FlexBucket
+	index              int
+	originalBuilderMap []interface{}
+	builderMap         []func(i int, m []interface{}) FlexBucket
+}
+
+func (s *SingleBucket) AddAllValues(val ...interface{}) {
+	for _, v := range val {
+		s.AddValue(v)
+	}
+}
+
+func (s *SingleBucket) AddValue(val interface{}) interface{} {
+	if s.count == 0 {
+		s.object = s.builderMap[s.index](s.index + 1, s.originalBuilderMap)
+	}
+	s.count = s.count + 1
+	return 0
+}
+
+func NewSingleBucket(index int, m []interface{}) FlexBucket {
+	flist := make([]func(index int, m []interface{}) FlexBucket, len(m))
+	for i, w := range m {
+		flist[i] = w.(func(in int, m []interface{}) FlexBucket)
+	}
+	return &SingleBucket{
+		count: 0,
+		index: index,
+		builderMap: flist,
+		originalBuilderMap:m,
+	}
+}
+func (s *SingleBucket) Buckets() map[string]int {
+	return map[string]int{
+		"one": s.count,
+	}
+}
+
+type BucketType int
+
+const (
+	NumberBucketType = iota
+	NilBucketType
+	SingleBucketType
+	IdentityBucketType
+)
+
+
+func (bt BucketType) String() string {
+	switch bt {
+	case NumberBucketType:
+		return "NumberBucket"
+	case NilBucketType:
+		return "NilBucket"
+	case SingleBucketType:
+		return "SinglBucket"
+	case IdentityBucketType:
+		return "IdentityBucket"
+	}
+}
+
+var builderMap = map[BucketType]func(int, []interface{}) FlexBucket{
+	NumberBucketType        : NewNumberRangeBucket,
+	NilBucketType: NewNilBucket,
+	SingleBucketType: NewSingleBucket,
+	IdentityBucketType: NewIdentityBucket,
+}
+
+func BuildTree(t []BucketType) FlexBucket {
 
 	builders := make([]interface{}, len(t))
 	for i := 1; i < len(t); i++ {
-		typ := t[i]
-		if typ == types.Number {
-			//fmt.Printf("%d children is a number range\n", i - 1)
-			builders[i - 1] = NewNumberRangeBucket
-		}else {
-			//fmt.Printf("%d children is a identity range\n", i - 1)
-			builders[i - 1] = NewIdentityBucket
-		}
+		builders[i - 1] = builderMap[t[i]]
 	}
 	builders[len(t) - 1] = NewNilBucket
-	typ := t[0]
-	var b func(i int, m[]interface{}) FlexBucket
-	if typ == types.Number {
-		b = NewNumberRangeBucket
-	}else {
-		b = NewIdentityBucket
-	}
-	//fmt.Printf("builders: %v\n", builders)
+	b := builderMap[t[0]]
+	fmt.Printf("builders: %v\n", builders)
 	return b(0, builders)
 }
 func (n NilBucket) AddRow(row []interface{}) {
 	//fmt.Printf("Add %v to NilBucket\n", row)
-
 }
 
-func (n NilBucket)AddBuckets(b FlexBucket) {
+func (n NilBucket) AddBuckets(b FlexBucket) {
 
 }
 
@@ -143,11 +225,15 @@ func (i *IdentityBucket) Buckets() map[string]int {
 }
 
 func (i *IdentityBucket) AddRow(row []interface{}) {
-	if len(row) < 1 {
+	l := len(row)
+	if l < 1 {
 		return
 	}
 	b := i.AddValue(row[0])
 	//fmt.Printf("Add %v to IdentityBucket[%d] => Added to %v\n", row, i.index, b)
+	if l < 2 {
+		return
+	}
 	i.objects[b.(string)].AddRow(row[1:])
 }
 
