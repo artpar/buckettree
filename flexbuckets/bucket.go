@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"os"
 //"time"
+	"strings"
 )
 
 type BucketImpl struct {
@@ -82,10 +83,10 @@ func NewNumberRangeBucket(index int, m []interface{}) FlexBucket {
 		builderMap: flist,
 		originalBuilderMap: m,
 	}
-	for i, _ := range b.objects {
-		//// // fmt.Printf( cur() + ": New bucket for: %d\n", i)
-		b.objects[i] = flist[index](index + 1, b.originalBuilderMap)
-	}
+	//for i, _ := range b.objects {
+	//// // fmt.Printf( cur() + ": New bucket for: %d\n", i)
+	//b.objects[i] = flist[index](index + 1, b.originalBuilderMap)
+	//}
 	return b
 }
 
@@ -121,15 +122,15 @@ func mergeBuckets(oCounts []int, oLows, oHighs []float64, oObjects []FlexBucket,
 	}
 	newCounts := make([]int, count)
 	newObjects := make([]FlexBucket, count)
-	for i, _ := range newObjects {
-		newObjects[i] = newBucketFunc()
-	}
+	//for i, _ := range newObjects {
+	//	newObjects[i] = newBucketFunc()
+	//}
 	// fmt.Printf(cur() + ": Last bucket: [%v,%v]\n", newLows[count - 1], newHighs[count - 1])
-	mergeOldToNew(oCounts, oLows, oHighs, oObjects, newCounts, newLows, newHighs, newObjects)
+	mergeOldToNew(oCounts, oLows, oHighs, oObjects, newCounts, newLows, newHighs, newObjects, newBucketFunc)
 	// fmt.Printf(cur() + ": Last bucket after merge first: [%v,%v]\n", newLows[count - 1], newHighs[count - 1])
 	// fmt.Printf(cur() + ": Last bucket to be merged: [%v,%v]\n", nLows[len(nLows) - 1], nHighs[len(nHighs) - 1])
 	// fmt.Printf(cur() + ": Last bucket to be merged %d: [%v,%v]\n", 82, nLows[82], nHighs[82])
-	mergeOldToNew(nCounts, nLows, nHighs, nObjects, newCounts, newLows, newHighs, newObjects)
+	mergeOldToNew(nCounts, nLows, nHighs, nObjects, newCounts, newLows, newHighs, newObjects, newBucketFunc)
 	// fmt.Printf(cur() + ": Merge complete\n")
 
 	return newCounts, newLows, newHighs, newObjects
@@ -184,7 +185,7 @@ func (b *BucketImpl) AddBuckets(x FlexBucket) {
 //	}
 //}
 
-func mergeOldToNew(oCounts []int, oLows, oHighs []float64, oObjects []FlexBucket, nCounts []int, nLows, nHighs []float64, nObjects []FlexBucket) ([]int, []float64, []float64, []FlexBucket) {
+func mergeOldToNew(oCounts []int, oLows, oHighs []float64, oObjects []FlexBucket, nCounts []int, nLows, nHighs []float64, nObjects []FlexBucket, newFunc func() FlexBucket) ([]int, []float64, []float64, []FlexBucket) {
 	newLength := nHighs[0] - nLows[0]
 	newHalfLength := newLength / 2
 	totalRecs := len(oCounts)
@@ -193,6 +194,9 @@ func mergeOldToNew(oCounts []int, oLows, oHighs []float64, oObjects []FlexBucket
 	//print(oCounts, oLows, oHighs)
 	for i := 0; i < totalRecs; i++ {
 		//print(nCounts, nLows, nHighs)
+		if oCounts[i] < 1 {
+			continue
+		}
 		if j == count {
 			if oCounts[i] != 0 {
 				// fmt.Printf(cur() + ": The Highest new Bucket is: %v => %v\n", nLows[count - 1], nHighs[count - 1])
@@ -218,6 +222,9 @@ func mergeOldToNew(oCounts []int, oLows, oHighs []float64, oObjects []FlexBucket
 		}
 		if oHighs[i] <= nHighs[j] {
 			// fmt.Printf(cur() + ": Simple merge %d to %d\n", i, j)
+			if nCounts[j] == 0 {
+				nObjects[j] = newFunc()
+			}
 			nCounts[j] = nCounts[j] + oCounts[i]
 			//nObjects[j] = append(nObjects[j], oObjects[i]...)
 			nObjects[j].AddBuckets(oObjects[i])
@@ -238,6 +245,9 @@ func mergeOldToNew(oCounts []int, oLows, oHighs []float64, oObjects []FlexBucket
 					nLows[j + 1] = nHighs[j]
 					nHighs[j + 1] = nLows[j + 1] + newLength
 				}
+				if nCounts[j] == 0 {
+					nObjects[j] = newFunc()
+				}
 				nCounts[j] = nCounts[j] + oCounts[i]
 				//nObjects[j] = append(nObjects[j], oObjects[i]...)
 				nObjects[j].AddBuckets(oObjects[i])
@@ -251,6 +261,9 @@ func mergeOldToNew(oCounts []int, oLows, oHighs []float64, oObjects []FlexBucket
 			} else {
 				nCounts[j] = nCounts[j] + oCounts[i]
 				//nObjects[j] = append(nObjects[j], oObjects[i]...)
+				if &nObjects[j] == nil {
+					fmt.Printf("Is nill: %d\n", j)
+				}
 				nObjects[j].AddBuckets(oObjects[i])
 				// todo: merge objects
 			}
@@ -262,6 +275,9 @@ func mergeOldToNew(oCounts []int, oLows, oHighs []float64, oObjects []FlexBucket
 				if nHighs[j + 1] - nLows[j + 1] < newLength {
 					nHighs[j + 1] = nLows[j + 1] + newLength
 				}
+			}
+			if nCounts[j] == 0 {
+				nObjects[j] = newFunc()
 			}
 			nCounts[j] = nCounts[j] + oCounts[i]
 			//nObjects[j] = append(nObjects[j], oObjects[i]...)
@@ -302,7 +318,7 @@ func resetBuckets(counts []int, lows []float64, high []float64, oObjects []FlexB
 	for i, _ := range newObjects {
 		newObjects[i] = newF()
 	}
-	return mergeOldToNew(counts, lows, high, oObjects, newCounts, newLows, newHighs, newObjects)
+	return mergeOldToNew(counts, lows, high, oObjects, newCounts, newLows, newHighs, newObjects, newF)
 	//return newCounts, newLows, newHighs, newObjects
 }
 
@@ -321,9 +337,14 @@ func (b *BucketImpl) AddRow(row []interface{}) {
 	val, ok := row[0].(float64)
 	var err error
 	if !ok {
-		val, err = strconv.ParseFloat(row[0].(string), 64)
-		if err != nil {
-			panic(fmt.Sprintf("This is not a number: %v", row[0]))
+		strNum := strings.ToLower(row[0].(string))
+		if strNum == "na" || strNum == "n/a" {
+			val = 0
+		} else {
+			val, err = strconv.ParseFloat(strNum, 64)
+			if err != nil {
+				panic(fmt.Sprintf("This is not a number: %v", row[0]))
+			}
 		}
 	}
 	bucketNumber := b.AddValue(val)
@@ -346,10 +367,10 @@ func (b *BucketImpl) AddValue(vali interface{}) interface{} {
 		l, h := makeBuckets(b.min, b.lengthOfBucket, b.numberOfBuckets)
 		b.bucketLow = l
 		b.bucketHigh = h
-		for c := 0; c < b.numberOfBuckets; c++ {
-			// fmt.Printf(cur() + ": New function: %v\n", b.builderMap[b.columnIndex])
-			b.objects[c] = b.builderMap[b.columnIndex](b.columnIndex + 1, b.originalBuilderMap)
-		}
+		//for c := 0; c < b.numberOfBuckets; c++ {
+		// fmt.Printf(cur() + ": New function: %v\n", b.builderMap[b.columnIndex])
+		//b.objects[c] = b.builderMap[b.columnIndex](b.columnIndex + 1, b.originalBuilderMap)
+		//}
 	} else {
 		if val < b.min || val > b.max {
 			if val < b.min {
@@ -374,6 +395,9 @@ func (b *BucketImpl) AddValue(vali interface{}) interface{} {
 		if ( val - b.bucketLow[i] >= 0.00  && b.bucketHigh[i] - val > 0.00) || (i == b.numberOfBuckets - 1) {
 			// fmt.Printf(cur() + ": %v added to bucket %d\n", val, i)
 			b.bucketCount[i] = b.bucketCount[i] + 1
+			if b.objects[i] == nil {
+				b.objects[i] = b.builderMap[b.columnIndex](b.columnIndex + 1, b.originalBuilderMap)
+			}
 			break
 		}
 	}

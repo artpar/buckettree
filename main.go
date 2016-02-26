@@ -11,6 +11,8 @@ import (
 	_ "net/http/pprof"
 	"log"
 	"net/http"
+	"sort"
+	"encoding/json"
 )
 
 type ColumnInfo struct {
@@ -49,43 +51,81 @@ func main() {
 	colData := make([][]string, len(row))
 	c := 10
 	rows := make([][]string, 0)
+	colValues := make([]ColumnInfo, len(row))
+	for i, _ := range colValues {
+		colValues[i] = ColumnInfo{ColumnNumber: i, UniqueValues: make(map[string]int)}
+	}
 	for row, err = reader.Read(); err == nil; row, err = reader.Read() {
-		if c < 0 {
+		if c < 1 {
 			break
 		}
 		for colNo, value := range row {
 			colData[colNo] = append(colData[colNo], value)
+			_, ok := colValues[colNo].UniqueValues[value]
+			colValues[colNo].Total = colValues[colNo].Total + 1
+			if ok {
+				colValues[colNo].UniqueValues[value] = colValues[colNo].UniqueValues[value] + 1
+			} else {
+				colValues[colNo].UniqueValues[value] = 1
+				colValues[colNo].UniqueValueCount = colValues[colNo].UniqueValueCount + 1
+			}
 		}
 		rows = append(rows, row)
 		c = c - 1
 	}
+	sort.Sort(ColumnInfoS(colValues))
+	for i, c := range colValues {
+		values := MapKeys(c.UniqueValues)
+		typ, _, _ := types.DetectType(values)
+		colValues[i].Type = typ
+		colValues[i].Percent = colValues[i].UniqueValueCount * 100 / colValues[i].Total
+		if colValues[i].Percent < 13 {
+			colValues[i].IsEnum = true
+		}
+	}
+	j, _ := json.MarshalIndent(colValues, "", "    ")
+	fmt.Printf("Column Counts: %v\n", string(j))
 
 	typesList := make([]types.EntityType, len(row))
-	for i := 0; i < len(row); i++ {
-		values := colData[i]
-		typ, _, _ := types.DetectType(values)
-		typesList[i] = typ
+	for i, c := range colValues {
+		typesList[i] = c.Type
 	}
 
 	//fmt.Printf("Types are: %v\n", typesList)
 	myBucket := flexbuckets.BuildTree(typesList)
 
+	convertedRow := make([]string, len(colValues))
 	for _, oldRow := range rows {
-		myBucket.AddRow(ToInterface(oldRow))
+		for i, c := range colValues {
+			convertedRow[i] = oldRow[c.ColumnNumber]
+		}
+		//fmt.Printf("Old1: %v\nNew1: %v\n\n", oldRow, convertedRow)
+		myBucket.AddRow(ToInterface(convertedRow))
 		//fmt.Printf("%v", myBucket.PrintBuckets(""))
 	}
 	//fmt.Printf("Completed old\n")
 	c = 0
 	for row, err = reader.Read(); err == nil; row, err = reader.Read() {
-		myBucket.AddRow(ToInterface(row))
+		for i, c := range colValues {
+			convertedRow[i] = row[c.ColumnNumber]
+		}
+		//fmt.Printf("Old2: %v\nNew2: %v\n\n", row, convertedRow)
+		myBucket.AddRow(ToInterface(convertedRow))
 		c = c + 1
-		if c > 5 {
-			c = 0
-			//fmt.Printf("%v", myBucket.PrintBuckets(""))
+		if c % 1000 == 0 {
+			fmt.Printf("Completed %d rows\n", c)
 		}
 	}
 
-	fmt.Printf("%v", myBucket.PrintBuckets(""))
+	//fmt.Printf("%v", myBucket.PrintBuckets(""))
+}
+
+func MapKeys(m map[string]int) []string {
+	x := make([]string, 0)
+	for k, _ := range m {
+		x = append(x, k)
+	}
+	return x
 }
 
 func ToInterface(oldRow []string) []interface{} {

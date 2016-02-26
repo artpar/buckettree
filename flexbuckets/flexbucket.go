@@ -152,6 +152,9 @@ func (i *IdentityBucket) AddRow(row []interface{}) {
 }
 
 func (i *IdentityBucket) AddBuckets(b FlexBucket) {
+	if b == nil {
+		return
+	}
 	strBucket, ok := b.(*IdentityBucket)
 	if !ok {
 		panic("Cannot merge non identity bucket to identity bucket: " + reflect.TypeOf(b).String())
