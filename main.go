@@ -121,12 +121,13 @@ func main() {
 		//fmt.Printf("Old2: %v\nNew2: %v\n\n", row, convertedRow)
 		myBucket.AddRow(ToInterface(convertedRow))
 		c = c + 1
-		if c % 1000 == 0 {
+		if c % 10000 == 0 {
 			fmt.Printf("Completed %d rows\n", c)
 		}
 	}
 
-	fmt.Printf("%v", myBucket.PrintBuckets(""))
+	fmt.Printf("%v\n", myBucket.PrintBuckets(""))
+	fmt.Printf("Finish")
 }
 
 func MapKeys(m map[string]int) []string {

@@ -83,6 +83,7 @@ func NewNumberRangeBucket(index int, m []interface{}) FlexBucket {
 		builderMap: flist,
 		originalBuilderMap: m,
 	}
+	//fmt.Printf("Size of Objects: %v\n", unsafe.Sizeof(b.objects))
 	//for i, _ := range b.objects {
 	//// // fmt.Printf( cur() + ": New bucket for: %d\n", i)
 	//b.objects[i] = flist[index](index + 1, b.originalBuilderMap)
@@ -397,7 +398,7 @@ func (b *BucketImpl) AddValue(vali interface{}) interface{} {
 	var i int
 	for i = 0; i < b.numberOfBuckets; i++ {
 		if ( val - b.bucketLow[i] >= 0.00  && b.bucketHigh[i] - val > 0.00) || (i == b.numberOfBuckets - 1) {
-			// fmt.Printf(cur() + ": %v added to bucket %d\n", val, i)
+			//fmt.Printf(": %v added to bucket %d\n", val, i)
 			b.bucketCount[i] = b.bucketCount[i] + 1
 			if b.objects[i] == nil {
 				b.objects[i] = b.builderMap[b.columnIndex](b.columnIndex + 1, b.originalBuilderMap)

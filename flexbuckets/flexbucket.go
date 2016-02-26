@@ -91,7 +91,6 @@ const (
 	IdentityBucketType
 )
 
-
 func (bt BucketType) String() string {
 	switch bt {
 	case NumberBucketType:
@@ -103,6 +102,7 @@ func (bt BucketType) String() string {
 	case IdentityBucketType:
 		return "IdentityBucket"
 	}
+	return "What?"
 }
 
 var builderMap = map[BucketType]func(int, []interface{}) FlexBucket{
